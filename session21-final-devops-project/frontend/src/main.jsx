@@ -52,8 +52,9 @@ function App() {
 
   const createLab = async (event) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await fetch(`${API}/labs`, {
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const response = await fetch(`${API}/labs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -65,7 +66,11 @@ function App() {
         status: "PLANNED",
       }),
     });
-    event.currentTarget.reset();
+    if (!response.ok) {
+      setError("The lab could not be saved");
+      return;
+    }
+    formElement.reset();
     setShowForm(false);
     await load();
   };

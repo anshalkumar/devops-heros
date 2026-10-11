@@ -114,13 +114,19 @@ The Session 21 workflow:
 
 The workflow file is [.github/workflows/session21-final-project.yml](../.github/workflows/session21-final-project.yml).
 
+The completed run is available in [GitHub Actions](https://github.com/anshalkumar/devops-heros/actions/runs/38040068266). All five jobs passed, including the image scan and the temporary Kind deployment.
+
 ![Session 21 GitHub Actions workflow](evidence/labtrack-github-actions.png)
 
 ![LabTrack images in GHCR](evidence/labtrack-ghcr-images.png)
 
+Both published images can also be checked on the [GitHub Packages page](https://github.com/anshalkumar?tab=packages).
+
 Trivy is configured with severity HIGH,CRITICAL, ignore-unfixed enabled, and exit code 1 for both images. This blocks delivery when a fixable serious vulnerability is present instead of only printing a warning.
 
 ![Trivy scans for both images](evidence/labtrack-trivy-scans.png)
+
+The successful [Build and scan images job](https://github.com/anshalkumar/devops-heros/actions/runs/38040068266/job/114178452760) shows both Trivy steps and the GHCR push.
 
 ## 5. Kubernetes and Helm
 
@@ -149,18 +155,31 @@ kubectl port-forward service/frontend -n labtrack 8080:80
 
 Then open http://localhost:8080.
 
+![LabTrack served from the Minikube cluster](evidence/labtrack-kubernetes-application.png)
+
 ## 6. Monitoring
 
-FastAPI exports Prometheus metrics at /metrics. The chart includes a ServiceMonitor for kube-prometheus-stack. For a free local demonstration I also provisioned Prometheus and Grafana with Docker Compose:
+FastAPI exports Prometheus metrics at /metrics. The chart includes a ServiceMonitor for kube-prometheus-stack. I used the official Prometheus and Grafana Helm charts for the local Minikube demonstration. The smaller values files keep the setup light enough for a laptop.
 
 ~~~bash
-cd monitoring
-docker compose up -d
-curl -fsS http://localhost:9091/-/ready
-curl -fsS http://localhost:3001/api/health
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+helm upgrade --install prometheus prometheus-community/prometheus \
+  --namespace monitoring --create-namespace \
+  -f monitoring/prometheus-lite-values.yaml
+
+helm upgrade --install grafana grafana/grafana \
+  --namespace monitoring \
+  -f monitoring/grafana-lite-values.yaml \
+  --set-file dashboards.default.labtrack.json=monitoring/dashboards/labtrack.json
+
+kubectl port-forward service/prometheus-server -n monitoring 9092:80
+kubectl port-forward service/grafana -n monitoring 3002:80
 ~~~
 
-Prometheus scrapes the running LabTrack backend every five seconds. Grafana loads the data source and dashboard automatically from this repository.
+Prometheus scrapes the backend Service inside Kubernetes every five seconds. Grafana loads the Prometheus data source and the LabTrack dashboard from this repository. I generated requests against the application before taking the dashboard screenshot so every panel contains real data.
 
 ![Prometheus target is up](evidence/labtrack-prometheus-target.png)
 
@@ -188,12 +207,11 @@ cd terraform
 terraform init
 terraform fmt -check
 terraform validate
-terraform plan
 ~~~
 
 [terraform.tfvars.example](terraform/terraform.tfvars.example) documents the inputs without storing credentials.
 
-I did not run terraform apply because this account has no AWS credits and EKS, worker nodes, and NAT Gateway incur charges. The code can be initialized and validated locally, but real AWS console, EKS, and terraform destroy screenshots require a funded AWS account.
+I ran init, the formatting check, and validation. I did not run plan or apply because this account has no AWS credits and EKS, worker nodes, and a NAT Gateway incur charges. Real AWS console, EKS, and destroy proof therefore still requires a funded AWS account.
 
 ![Terraform initialization and validation](evidence/labtrack-terraform-validate.png)
 
@@ -203,4 +221,4 @@ I did not run terraform apply because this account has no AWS credits and EKS, w
 
 ## Result
 
-The free local parts of the capstone are reproducible from this repository: the application, CRUD API, tests, containers, CI/security workflow, GHCR delivery, Helm deployment, HPA definition, monitoring, GitOps manifest, and troubleshooting labs. The only unfinished graded evidence is the paid AWS apply/destroy portion.
+The application, CRUD API, tests, containers, CI and security checks, GHCR images, Helm deployment, HPA, monitoring, GitOps manifest, and troubleshooting labs were all completed. The only part I could not run was the paid AWS creation and destruction step.
