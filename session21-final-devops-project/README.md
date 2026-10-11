@@ -114,7 +114,7 @@ The Session 21 workflow:
 
 The workflow file is [.github/workflows/session21-final-project.yml](../.github/workflows/session21-final-project.yml).
 
-The completed run is available in [GitHub Actions](https://github.com/anshalkumar/devops-heros/actions/runs/38040068266). All five jobs passed, including the image scan and the temporary Kind deployment.
+The completed run is available in [GitHub Actions](https://github.com/anshalkumar/devops-heros/actions/runs/38128067178). All five jobs passed, including the image scan and the temporary Kind deployment.
 
 ![Session 21 GitHub Actions workflow](evidence/labtrack-github-actions.png)
 
@@ -126,7 +126,7 @@ Trivy is configured with severity HIGH,CRITICAL, ignore-unfixed enabled, and exi
 
 ![Trivy scans for both images](evidence/labtrack-trivy-scans.png)
 
-The successful [Build and scan images job](https://github.com/anshalkumar/devops-heros/actions/runs/38040068266/job/114178452760) shows both Trivy steps and the GHCR push.
+The successful [Build and scan images job](https://github.com/anshalkumar/devops-heros/actions/runs/38128067178/job/114436568375) shows both Trivy steps and the GHCR push.
 
 ## 5. Kubernetes and Helm
 
