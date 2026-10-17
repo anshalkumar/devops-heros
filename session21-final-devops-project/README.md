@@ -99,7 +99,13 @@ docker compose ps
 
 ![Running containers and non-root users](evidence/labtrack-containers.png)
 
-## 4. CI/CD and security
+## 4. Git and GitHub
+
+I kept the project in a public GitHub repository and used short commit messages that describe the work done. The repository history contains more than ten commits, and the project `.gitignore` excludes environment files, virtual environments, Python caches, Node modules, Terraform state, and local build output.
+
+![LabTrack Git commit history](evidence/labtrack-git-history.png)
+
+## 5. CI/CD and security
 
 The Session 21 workflow:
 
@@ -114,7 +120,7 @@ The Session 21 workflow:
 
 The workflow file is [.github/workflows/session21-final-project.yml](../.github/workflows/session21-final-project.yml).
 
-The completed run is available in [GitHub Actions](https://github.com/anshalkumar/devops-heros/actions/runs/38128067178). All five jobs passed, including the image scan and the temporary Kind deployment.
+The completed run is available in [GitHub Actions](https://github.com/anshalkumar/devops-heros/actions/runs/38128550644). All five jobs passed, including the image scan and the temporary Kind deployment.
 
 ![Session 21 GitHub Actions workflow](evidence/labtrack-github-actions.png)
 
@@ -122,13 +128,13 @@ The completed run is available in [GitHub Actions](https://github.com/anshalkuma
 
 Both published images can also be checked on the [GitHub Packages page](https://github.com/anshalkumar?tab=packages).
 
-Trivy is configured with severity HIGH,CRITICAL, ignore-unfixed enabled, and exit code 1 for both images. This blocks delivery when a fixable serious vulnerability is present instead of only printing a warning.
+Trivy scanned both final container images for HIGH and CRITICAL operating-system and package vulnerabilities. The scan ignores vulnerabilities without an available fix and exits with code 1 when it finds a fixable serious issue, so an unsafe image cannot be published silently.
 
 ![Trivy scans for both images](evidence/labtrack-trivy-scans.png)
 
-The successful [Build and scan images job](https://github.com/anshalkumar/devops-heros/actions/runs/38128067178/job/114436568375) shows both Trivy steps and the GHCR push.
+The successful [workflow run](https://github.com/anshalkumar/devops-heros/actions/runs/38128550644) shows both Trivy steps and the GHCR push.
 
-## 5. Kubernetes and Helm
+## 6. Kubernetes and Helm
 
 The chart creates two frontend replicas, two backend replicas, PostgreSQL, ClusterIP Services, probes, resource limits, an optional Ingress, and an HPA.
 
@@ -157,7 +163,7 @@ Then open http://localhost:8080.
 
 ![LabTrack served from the Minikube cluster](evidence/labtrack-kubernetes-application.png)
 
-## 6. Monitoring
+## 7. Monitoring
 
 FastAPI exports Prometheus metrics at /metrics. The chart includes a ServiceMonitor for kube-prometheus-stack. I used the official Prometheus and Grafana Helm charts for the local Minikube demonstration. The smaller values files keep the setup light enough for a laptop.
 
@@ -181,11 +187,15 @@ kubectl port-forward service/grafana -n monitoring 3002:80
 
 Prometheus scrapes the backend Service inside Kubernetes every five seconds. Grafana loads the Prometheus data source and the LabTrack dashboard from this repository. I generated requests against the application before taking the dashboard screenshot so every panel contains real data.
 
+The backend itself returns Prometheus text data from `/metrics`, including process metrics and the `http_requests_total` counter.
+
+![Prometheus-format output from the LabTrack metrics endpoint](evidence/labtrack-metrics-output.png)
+
 ![Prometheus target is up](evidence/labtrack-prometheus-target.png)
 
 ![Live LabTrack Grafana dashboard](evidence/labtrack-grafana-dashboard.png)
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 The two files under [troubleshooting/](troubleshooting/) reproduce common failures:
 
@@ -198,7 +208,7 @@ I first inspect the status, events, labels, and EndpointSlices, then correct the
 
 ![Broken Service diagnosis and recovery](evidence/labtrack-broken-service.png)
 
-## 8. Terraform
+## 9. Terraform
 
 The Terraform code defines an AWS VPC across two Availability Zones, two public subnets, two private subnets, a NAT gateway, EKS, and a managed node group.
 
@@ -207,18 +217,51 @@ cd terraform
 terraform init
 terraform fmt -check
 terraform validate
+terraform plan -out=labtrack.tfplan
+terraform apply labtrack.tfplan
+aws eks update-kubeconfig --region ap-southeast-2 --name labtrack-eks
+kubectl get nodes
+terraform destroy -auto-approve
 ~~~
 
 [terraform.tfvars.example](terraform/terraform.tfvars.example) documents the inputs without storing credentials.
 
-I ran init, the formatting check, and validation. I did not run plan or apply because this account has no AWS credits and EKS, worker nodes, and a NAT Gateway incur charges. Real AWS console, EKS, and destroy proof therefore still requires a funded AWS account.
+I ran this in the `ap-southeast-2` region using the AWS free-plan credits. The saved plan contained 54 resources. Terraform then created the VPC, four subnets, NAT gateway, EKS control plane, and a managed node group with two `t3.small` workers. Both worker nodes reached Ready state.
+
+The new AWS account experience blocks creation of an IAM OpenID Connect provider, so IRSA is disabled in this classroom configuration. I also used `t3.small` because the account marked that size as eligible. Neither change stores credentials in the repository.
 
 ![Terraform initialization and validation](evidence/labtrack-terraform-validate.png)
 
-## 9. GitOps
+![Terraform plan with 54 resources](evidence/labtrack-terraform-plan.png)
+
+![LabTrack VPC in the Sydney AWS region](evidence/labtrack-aws-vpc.png)
+
+![Active LabTrack EKS cluster](evidence/labtrack-aws-eks-cluster.png)
+
+![Active managed node group with two workers](evidence/labtrack-aws-node-group.png)
+
+After checking the cluster, I ran `terraform destroy`. Terraform removed all 53 resources in state. I verified afterward that Terraform state was empty and that AWS returned no LabTrack EKS cluster, VPC, or active NAT gateway.
+
+![Successful Terraform cleanup](evidence/labtrack-terraform-destroy.png)
+
+## 10. GitOps
 
 [gitops/application.yaml](gitops/application.yaml) is an Argo CD Application that watches the LabTrack Helm chart on main. Automated pruning and self-healing are enabled. This lets Git remain the desired state for the cluster.
 
+## Technologies used
+
+- React, Vite, and Nginx for the frontend
+- FastAPI, SQLAlchemy, Alembic, Pytest, and PostgreSQL for the backend
+- Docker and Docker Compose for local containers
+- GitHub Actions, GHCR, Bandit, pip-audit, Gitleaks, and Trivy for delivery and security
+- Kubernetes, Helm, Ingress, HPA, and Argo CD for deployment
+- Prometheus and Grafana for monitoring
+- Terraform, AWS VPC, and Amazon EKS for cloud infrastructure
+
+## What I learned
+
+The biggest lesson was that each stage needs a clear check before the next one starts. Tests and scans should stop a bad image before it is published, readiness probes should keep traffic away from an unavailable application, and monitoring should confirm what the service is doing after deployment. I also saw why infrastructure cleanup is part of the task: checking an AWS deployment is not finished until `terraform destroy` succeeds and the account is checked for resources that could keep using credits.
+
 ## Result
 
-The application, CRUD API, tests, containers, CI and security checks, GHCR images, Helm deployment, HPA, monitoring, GitOps manifest, and troubleshooting labs were all completed. The only part I could not run was the paid AWS creation and destruction step.
+The application, CRUD API, tests, containers, Git history, CI and security checks, GHCR images, Helm deployment, HPA, monitoring, GitOps manifest, troubleshooting labs, and real AWS Terraform deployment were completed. The AWS infrastructure was destroyed after verification so it does not continue using credits.
